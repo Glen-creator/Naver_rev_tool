@@ -76,7 +76,7 @@ def key_from_n3r(app: str) -> str:
                            encoding="utf-8", errors="ignore", timeout=60)
     except (OSError, subprocess.TimeoutExpired) as e:
         sys.exit(f"n3r 실행 실패: {e}")
-    out = re.sub(r"\[[0-9;]*[A-Za-z]", "", r.stdout or "")   # 색상 코드 제거(ANSI 시퀀스의 '[' 가 JSON 추출을 어긋나게 함)
+    out = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", r.stdout or "")   # ANSI 색상 코드 제거 — 시퀀스 안의 대괄호가 JSON 추출을 어긋나게 한다
     m = re.search(r"[\[{].*[\]}]", out, re.S)
     key = ""
     if m:
