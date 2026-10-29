@@ -47,7 +47,7 @@ def anonymize(entries: list, keep_names: bool) -> list:
 def _find_key(obj, name="STORE_KEY"):
     """n3r app env 출력(JSON)에서 name 항목의 값을 찾는다 — {name:…,value:…} 목록이든 {NAME: value} 사전이든."""
     if isinstance(obj, dict):
-        if obj.get("name") == name and obj.get("value"):
+        if (obj.get("name") == name or obj.get("key") == name) and obj.get("value"):   # n3r app env -o json 은 {key,value,encrypted}
             return str(obj["value"])
         if obj.get(name) and isinstance(obj[name], str):
             return obj[name]
@@ -76,7 +76,7 @@ def key_from_n3r(app: str) -> str:
                            encoding="utf-8", errors="ignore", timeout=60)
     except (OSError, subprocess.TimeoutExpired) as e:
         sys.exit(f"n3r 실행 실패: {e}")
-    out = r.stdout or ""
+    out = re.sub(r"\[[0-9;]*[A-Za-z]", "", r.stdout or "")   # 색상 코드 제거(ANSI 시퀀스의 '[' 가 JSON 추출을 어긋나게 함)
     m = re.search(r"[\[{].*[\]}]", out, re.S)
     key = ""
     if m:
