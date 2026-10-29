@@ -283,6 +283,7 @@ async function boot(){
   HIST.entries.forEach(e=>{e._t=new Date(e.ts); e.parsed=e.parsed||{}; e.top=e.top||[]; e._people=e.parsed.people||0; e._zero=e.n_match===0||(e.relaxed&&e.relaxed.length>0);});
   $('#meta').innerHTML=`<span>이력 ${fmtN(HIST.n)}건 · ${esc((HIST.since||'').slice(0,10))} ~ ${esc((HIST.asof||'').slice(0,10))}</span><span>매장 ${fmtN(CAT.n)}곳(검색 대상 ${fmtN(CAT.n_searchable)}) · 카탈로그 ${esc(CAT.source_asof)}</span>`;
   if(HIST.meta&&HIST.meta.sample){const b=$('#banner');b.hidden=false;b.innerHTML='<b>샘플 데이터</b> — 서버의 검색 이력 저장(2026-10-29 추가)이 쌓이기 전이라, 실제 질문 유형을 본뜬 40건으로 화면을 구성했습니다. 매장·매칭 결과는 실제 카탈로그 기준입니다.';}
+  else if(HIST.n<10){const b=$('#banner');b.hidden=false;b.innerHTML=`<b>실데이터 수집 초기</b> — 서버가 2026-10-29부터 검색 이력을 저장하기 시작했고 현재 ${fmtN(HIST.n)}건입니다. 비서진·봇 사용이 쌓이면 데이터 갱신 때 늘어납니다.`;}
   fillSelects(); bindUI(); apply();
 }
 function fillSelects(){
