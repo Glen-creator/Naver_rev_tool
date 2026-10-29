@@ -66,8 +66,11 @@ def _find_key(obj, name="STORE_KEY"):
 def key_from_n3r(app: str) -> str:
     """n3r CLI 로 place-admin-api 의 STORE_KEY 를 읽는다(값은 메모리에서만 쓰고 출력하지 않는다)."""
     import re
+    import shutil
     import subprocess
-    exe = "n3r.cmd" if os.name == "nt" else "n3r"
+    exe = next((w for w in (shutil.which(n) for n in ("n3r", "n3r.exe", "n3r.cmd")) if w), None)
+    if not exe:
+        sys.exit("n3r CLI 를 PATH 에서 찾지 못했습니다.")
     try:
         r = subprocess.run([exe, "app", "env", app, "-o", "json"], cwd=API_DIR, capture_output=True, text=True,
                            encoding="utf-8", errors="ignore", timeout=60)
