@@ -41,7 +41,10 @@ a.web{background:#fff;color:var(--txt);border-color:var(--line)}
 </div></div>
 <script>
 (function(){
-  var ALLOW = /(^|\.)(booking\.naver\.com|place\.naver\.com|map\.naver\.com|naver\.me|smartplace\.naver\.com)$/i;
+  // v40: 네이버(예약·플레이스) → 네이버 앱 인앱브라우저 / 캐치테이블(app.catchtable.co.kr/ct/*) → 캐치테이블 앱(앱 링크)
+  var NAVER = /(^|\.)(booking\.naver\.com|place\.naver\.com|map\.naver\.com|naver\.me|smartplace\.naver\.com)$/i;
+  var CATCH = /^app\.catchtable\.co\.kr$/i;
+  var CATCH_PKG = 'co.kr.catchtable.android.catchtable_app';   // app.catchtable.co.kr/.well-known/assetlinks.json
   var q = new URLSearchParams(location.search);
   var u = (q.get('u') || '').trim();
   var $ = function(id){ return document.getElementById(id); };
@@ -52,31 +55,50 @@ a.web{background:#fff;color:var(--txt);border-color:var(--line)}
   };
   var url;
   try { url = new URL(u); } catch (e) { return fail('주소가 비어 있거나 올바르지 않아요.'); }
-  if (url.protocol !== 'https:' || !ALLOW.test(url.hostname)) return fail('네이버 예약·플레이스 주소만 열 수 있어요.');
+  var isCatch = url.protocol === 'https:' && CATCH.test(url.hostname) && /^\/ct\//.test(url.pathname);
+  if (url.protocol !== 'https:' || !(NAVER.test(url.hostname) || isCatch)) return fail('네이버 예약·플레이스·캐치테이블 주소만 열 수 있어요.');
   u = url.href;
   $('host').textContent = url.hostname + url.pathname;
   var ua = navigator.userAgent || '';
   var isAndroid = /Android/i.test(ua), isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  var inNaverApp = /NAVER\(inapp/i.test(ua);
   var enc = encodeURIComponent(u);
-  var scheme = 'naversearchapp://inappbrowser?url=' + enc + '&target=new&version=6';
-  var intent = 'intent://inappbrowser?url=' + enc + '&target=new&version=6#Intent;scheme=naversearchapp;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.nhn.android.search;S.browser_fallback_url=' + enc + ';end';
+  var appName = isCatch ? '캐치테이블' : '네이버';
+  var appLink, inApp;
+  if (isCatch) {
+    document.title = '캐치테이블 열기';
+    document.querySelector('.logo').textContent = 'C';
+    document.querySelector('.logo').style.background = '#ff7a00';
+    $('btnApp').style.background = '#ff7a00';
+    inApp = /catchtable/i.test(ua);
+    // Android: 앱 링크를 intent 로 직접 — 앱 없으면 browser_fallback_url(웹). iOS: 유니버설 링크는 사용자 탭에서만 동작 → 버튼 링크를 https 그대로
+    appLink = isAndroid ? ('intent://' + url.host + url.pathname + url.search + '#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=' + CATCH_PKG + ';S.browser_fallback_url=' + enc + ';end') : u;
+    $('tip').textContent = '앱이 있으면 캐치테이블 앱에서, 없으면 캐치테이블 웹에서 열려요. iPhone 은 [캐치테이블 앱에서 열기]를 눌러 주세요.';
+  } else {
+    inApp = /NAVER\(inapp/i.test(ua);
+    appLink = isAndroid ? ('intent://inappbrowser?url=' + enc + '&target=new&version=6#Intent;scheme=naversearchapp;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.nhn.android.search;S.browser_fallback_url=' + enc + ';end')
+                        : ('naversearchapp://inappbrowser?url=' + enc + '&target=new&version=6');
+  }
+  $('title').textContent = appName + ' 앱으로 여는 중…';
+  $('btnApp').textContent = appName + ' 앱에서 열기';
   $('btnWeb').href = u;
-  $('btnApp').href = isAndroid ? intent : scheme;
-  // 데스크톱이거나 이미 네이버 앱 안이면 중계 없이 바로 이동
-  if (inNaverApp || (!isAndroid && !isIOS)) { location.replace(u); return; }
-  // 모바일: 앱 스킴을 한 번 시도하고, 화면이 그대로면(앱 없음·차단) 브라우저 주소로
+  $('btnApp').href = appLink;
+  // 데스크톱이거나 이미 해당 앱 안이면 중계 없이 바로 이동
+  if (inApp || (!isAndroid && !isIOS)) { location.replace(u); return; }
   var left = false;
-  var onHide = function(){ if (document.visibilityState === 'hidden') left = true; };
-  document.addEventListener('visibilitychange', onHide);
+  document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'hidden') left = true; });
   window.addEventListener('pagehide', function(){ left = true; });
-  try {
-    if (isAndroid) { location.href = intent; } else { location.href = scheme; }
-  } catch (e) {}
+  if (isCatch && isIOS) {
+    // iOS 캐치: 자동 이동은 유니버설 링크를 못 깨우므로 버튼 탭을 기다리고, 6초 뒤 웹으로
+    $('title').textContent = '캐치테이블 앱에서 열까요?';
+    $('desc').textContent = '아래 버튼을 누르면 앱이 있으면 앱으로, 없으면 웹으로 열려요.';
+    setTimeout(function(){ if (!left && document.visibilityState !== 'hidden') location.replace(u); }, 6000);
+    return;
+  }
+  try { location.href = appLink; } catch (e) {}
   setTimeout(function(){
     if (left || document.visibilityState === 'hidden') return;
-    $('title').textContent = '네이버 앱이 열리지 않았어요';
-    $('desc').textContent = '아래에서 여는 방법을 골라 주세요. 브라우저로 열면 그 브라우저의 네이버 로그인이 쓰여요.';
+    $('title').textContent = appName + ' 앱이 열리지 않았어요';
+    $('desc').textContent = '아래에서 여는 방법을 골라 주세요.' + (isCatch ? '' : ' 브라우저로 열면 그 브라우저의 네이버 로그인이 쓰여요.');
     setTimeout(function(){ if (!left && document.visibilityState !== 'hidden') location.replace(u); }, 2500);
   }, 1500);
 })();
