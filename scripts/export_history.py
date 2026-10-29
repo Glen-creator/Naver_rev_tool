@@ -48,6 +48,8 @@ def live(api: str, since: str, keep_names: bool) -> dict:
     key = os.environ.get("STORE_KEY", "").strip()
     if not key:
         sys.exit("환경변수 STORE_KEY 가 없습니다 (실행 시점에만 set 하세요).")
+    if not key.isascii() or key.startswith("<") or key in ("키", "<키>"):
+        sys.exit("STORE_KEY 가 자리표시자('<키>') 그대로입니다 — place-admin-api(n3r) 의 STORE_KEY 환경변수 값을 넣어 주세요.")
     r = requests.get(api.rstrip("/") + "/revtool/history", params={"backfill": 1, "since": since, "limit": 10000},
                      headers={"X-Store-Key": key}, timeout=60)
     if r.status_code != 200:
