@@ -2,6 +2,7 @@
 
 라이브 모드(사내망/VPN 필요):
   set STORE_KEY=<place-admin-api 저장소 키>      ← 코드·레포에 저장하지 말고 실행 시점에만
+  python scripts/export_history.py --from-n3r        ← 키를 n3r app env 에서 자동으로 읽음(권장)
   python scripts/export_history.py [--api https://place-admin.io.naver.com] [--since 2026-10-01] [--names]
   → GET {api}/revtool/history?backfill=1 을 받아 계정 메일을 익명화(사용자 1, 2, …)해 저장한다. --names 를 주면 메일 앞부분을 그대로 둔다.
 
@@ -43,11 +44,58 @@ def anonymize(entries: list, keep_names: bool) -> list:
     return entries
 
 
-def live(api: str, since: str, keep_names: bool) -> dict:
+def _find_key(obj, name="STORE_KEY"):
+    """n3r app env 출력(JSON)에서 name 항목의 값을 찾는다 — {name:…,value:…} 목록이든 {NAME: value} 사전이든."""
+    if isinstance(obj, dict):
+        if obj.get("name") == name and obj.get("value"):
+            return str(obj["value"])
+        if obj.get(name) and isinstance(obj[name], str):
+            return obj[name]
+        for v in obj.values():
+            r = _find_key(v, name)
+            if r:
+                return r
+    elif isinstance(obj, list):
+        for v in obj:
+            r = _find_key(v, name)
+            if r:
+                return r
+    return ""
+
+
+def key_from_n3r(app: str) -> str:
+    """n3r CLI 로 place-admin-api 의 STORE_KEY 를 읽는다(값은 메모리에서만 쓰고 출력하지 않는다)."""
+    import re
+    import subprocess
+    exe = "n3r.cmd" if os.name == "nt" else "n3r"
+    try:
+        r = subprocess.run([exe, "app", "env", app, "-o", "json"], cwd=API_DIR, capture_output=True, text=True,
+                           encoding="utf-8", errors="ignore", timeout=60)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        sys.exit(f"n3r 실행 실패: {e}")
+    out = r.stdout or ""
+    m = re.search(r"[\[{].*[\]}]", out, re.S)
+    key = ""
+    if m:
+        try:
+            key = _find_key(json.loads(m.group(0)))
+        except ValueError:
+            key = ""
+    if not key:
+        m2 = re.search(r"STORE_KEY\s*[:=]?\s*([A-Za-z0-9_\-./+=]{8,})", out + (r.stderr or ""))
+        key = m2.group(1) if m2 else ""
+    if not key:
+        sys.exit("n3r app env 출력에서 STORE_KEY 를 찾지 못했습니다 (n3r 로그인·프로젝트 선택 상태를 확인하세요).")
+    return key
+
+
+def live(api: str, since: str, keep_names: bool, from_n3r: bool = False, app: str = "place-admin-api-st") -> dict:
     import requests
     key = os.environ.get("STORE_KEY", "").strip()
+    if from_n3r or not key:
+        key = key_from_n3r(app)
     if not key:
-        sys.exit("환경변수 STORE_KEY 가 없습니다 (실행 시점에만 set 하세요).")
+        sys.exit("환경변수 STORE_KEY 가 없습니다 (실행 시점에만 set 하거나 --from-n3r 를 쓰세요).")
     if not key.isascii() or key.startswith("<") or key in ("키", "<키>"):
         sys.exit("STORE_KEY 가 자리표시자('<키>') 그대로입니다 — place-admin-api(n3r) 의 STORE_KEY 환경변수 값을 넣어 주세요.")
     r = requests.get(api.rstrip("/") + "/revtool/history", params={"backfill": 1, "since": since, "limit": 10000},
@@ -150,8 +198,10 @@ def main():
     ap.add_argument("--since", default="")
     ap.add_argument("--names", action="store_true", help="계정 메일 앞부분을 그대로 둔다(기본은 사용자 N 익명화)")
     ap.add_argument("--sample", action="store_true")
+    ap.add_argument("--from-n3r", action="store_true", help="STORE_KEY 를 n3r app env 에서 직접 읽는다(키 복사 불필요)")
+    ap.add_argument("--app", default="place-admin-api-st", help="n3r 앱 이름")
     a = ap.parse_args()
-    out = sample() if a.sample else live(a.api, a.since, a.names)
+    out = sample() if a.sample else live(a.api, a.since, a.names, a.from_n3r, a.app)
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     json.dump(out, open(OUT, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     print(f"history.json: {out['n']}건 (sample={out['meta']['sample']}) → {os.path.relpath(OUT)}")
