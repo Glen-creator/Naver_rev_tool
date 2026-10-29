@@ -1,4 +1,4 @@
-# 파인다이닝 검색 이력 뷰어 — 데이터 갱신 원클릭 (Windows PowerShell 5.1)
+﻿# 파인다이닝 검색 이력 뷰어 — 데이터 갱신 원클릭 (Windows PowerShell 5.1)
 #   실행:  & C:\Users\USER\Glen_Claude_code\Naver_rev_tool\update.ps1
 #   하는 일: ① n3r 에서 STORE_KEY 를 읽어 서버 이력 내보내기(history.json) ② 카탈로그 재생성(catalog.json, 원천 있을 때만) ③ 바뀐 데이터 커밋·푸시
 $ErrorActionPreference = "Stop"
