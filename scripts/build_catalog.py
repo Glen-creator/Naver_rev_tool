@@ -29,7 +29,8 @@ def load_data(src: str) -> list:
     return json.loads(m.group(1))
 
 
-def slim(v: dict, searchable: set) -> dict:
+def slim(v: dict, searchable: set, cat: dict | None = None) -> dict:
+    cat = cat or {}
     rw = v.get("rw") or {}
     pr = v.get("price") or {}
     aw = v.get("aw") or {}
@@ -48,6 +49,8 @@ def slim(v: dict, searchable: set) -> dict:
         "awards": sorted(aw.keys()) if isinstance(aw, dict) else [],
         "rwn": rw.get("n") or 0, "rwsc": rw.get("sc"), "kw": [k for k, _ in (rw.get("kw") or [])[:4]],
         "seat": [s for s in (rw.get("seat") or [])[:4]],
+        "catch": v.get("catch") or cat.get("catch") or "",            # 캐치테이블 매장 링크(세일즈 어드민 catch_map, 없으면 빈 값)
+        "rwline": cat.get("rwline") or "",                             # AI 후기 한 줄 요약(봇 카탈로그에만 있음)
         "searchable": v["pid"] in searchable,   # AI 검색·봇 카탈로그(rt_catalog.json) 포함 여부 — 신규 편입(fd)·검색 제외분은 false
         "new": bool(v.get("fd")),
     }
@@ -59,8 +62,9 @@ def main():
     a = ap.parse_args()
     data = load_data(a.src)
     cat = json.load(open(os.path.join(a.src, "data", "rt_catalog.json"), encoding="utf-8"))
-    searchable = {e["pid"] for e in cat.get("entries", [])}
-    rows = [slim(v, searchable) for v in data]
+    bypid = {str(e["pid"]): e for e in cat.get("entries", [])}
+    searchable = set(bypid)
+    rows = [slim(v, searchable, bypid.get(str(v["pid"]))) for v in data]
     out = {"asof": dt.date.today().isoformat(), "source_asof": cat.get("asof", ""), "n": len(rows),
            "n_searchable": sum(1 for r in rows if r["searchable"]),
            "meta": cat.get("meta", {}), "entries": rows}

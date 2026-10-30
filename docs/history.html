@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>파인다이닝 검색 이력</title>
+<meta name="description" content="비서진 예약툴·웍스 봇에서 파인다이닝 식당을 찾은 검색 이력 — 질문, 조건, 추천된 매장, 수요 지도">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" crossorigin="">
+<style>
+@font-face{font-family:'NanumSquare';font-weight:400;font-display:swap;src:url(https://hangeul.pstatic.net/hangeul_static/webfont/NanumSquare/NanumSquareR.woff) format('woff')}
+@font-face{font-family:'NanumSquare';font-weight:700;font-display:swap;src:url(https://hangeul.pstatic.net/hangeul_static/webfont/NanumSquare/NanumSquareB.woff) format('woff')}
+@font-face{font-family:'NanumSquare';font-weight:800;font-display:swap;src:url(https://hangeul.pstatic.net/hangeul_static/webfont/NanumSquare/NanumSquareEB.woff) format('woff')}
+:root{
+  color-scheme:light;
+  --bg:#f5f6f8;--surface:#ffffff;--surface-2:#f0f2f5;--line:#e2e5ea;--line-2:#cfd4dc;
+  --ink:#0b0b0b;--ink-2:#52514e;--ink-3:#8a8986;
+  --web:#2a78d6;--bot:#eb6834;--seq-1:#dbe8f8;--seq-2:#9cc0ea;--seq-3:#5a95db;--seq-4:#2a78d6;--seq-5:#174f93;
+  --warn:#b96a00;--warn-bg:#fff4e0;--good:#1d7a1d;--good-bg:#e9f5e9;--bad:#b4302f;--bad-bg:#fbe9e9;
+  --chip:#eef1f5;--chip-ink:#333;--focus:#2a78d6;--shadow:0 1px 2px rgba(0,0,0,.06),0 6px 20px rgba(0,0,0,.06);
+  --mark-all:#9aa0a8;--mark-search:#5a6572;--demand:#eb6834;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  color-scheme:dark;
+  --bg:#121315;--surface:#1a1b1e;--surface-2:#232529;--line:#2d3036;--line-2:#3b3f47;
+  --ink:#f0efec;--ink-2:#c3c2b7;--ink-3:#8f8e88;
+  --web:#3987e5;--bot:#d95926;--seq-1:#1d2a3c;--seq-2:#244c7c;--seq-3:#2f6cb3;--seq-4:#3987e5;--seq-5:#7fb2f0;
+  --warn:#e9a53c;--warn-bg:#352a14;--good:#5fbf5f;--good-bg:#17301a;--bad:#e66767;--bad-bg:#3a1c1c;
+  --chip:#2a2d33;--chip-ink:#e6e6e3;--shadow:0 1px 2px rgba(0,0,0,.4);
+  --mark-all:#5d636c;--mark-search:#9aa3af;--demand:#d95926;
+}}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#121315;--surface:#1a1b1e;--surface-2:#232529;--line:#2d3036;--line-2:#3b3f47;
+  --ink:#f0efec;--ink-2:#c3c2b7;--ink-3:#8f8e88;
+  --web:#3987e5;--bot:#d95926;--seq-1:#1d2a3c;--seq-2:#244c7c;--seq-3:#2f6cb3;--seq-4:#3987e5;--seq-5:#7fb2f0;
+  --warn:#e9a53c;--warn-bg:#352a14;--good:#5fbf5f;--good-bg:#17301a;--bad:#e66767;--bad-bg:#3a1c1c;
+  --chip:#2a2d33;--chip-ink:#e6e6e3;--shadow:0 1px 2px rgba(0,0,0,.4);
+  --mark-all:#5d636c;--mark-search:#9aa3af;--demand:#d95926;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:'NanumSquare','Apple SD Gothic Neo','Malgun Gothic',sans-serif;font-size:14px;line-height:1.5}
+a{color:var(--web)}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+.wrap{max-width:1360px;margin:0 auto;padding:0 16px 48px}
+header.top{position:sticky;top:0;z-index:50;background:var(--surface);border-bottom:1px solid var(--line)}
+header.top .in{max-width:1360px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+h1{font-size:18px;margin:0;font-weight:800;letter-spacing:-.2px}
+h1 small{font-weight:400;color:var(--ink-3);font-size:12px;margin-left:8px}
+.meta{color:var(--ink-3);font-size:12px;margin-left:auto;display:flex;gap:12px;flex-wrap:wrap}
+.banner{background:var(--warn-bg);color:var(--warn);border:1px solid color-mix(in srgb,var(--warn) 30%,transparent);border-radius:8px;padding:8px 12px;margin:12px 0 0;font-size:13px}
+.banner b{font-weight:800}
+/* filters */
+.filters{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.filters label{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-2)}
+.filters select,.filters input[type=text],.filters input[type=date]{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-size:13px;min-height:30px}
+.filters input[type=text]{min-width:180px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:var(--surface-2);padding:5px 10px;font-size:12px;color:var(--ink-2)}
+.seg button.on{background:var(--ink);color:var(--surface);font-weight:700}
+.tog{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:4px 10px;font-size:12px;color:var(--ink-2)}
+.tog.on{background:var(--ink);color:var(--surface);border-color:var(--ink);font-weight:700}
+.btn{border:1px solid var(--line-2);background:var(--surface);border-radius:8px;padding:5px 10px;font-size:12px}
+.btn.primary{background:var(--ink);color:var(--surface);border-color:var(--ink);font-weight:700}
+.spacer{flex:1}
+/* kpi */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+.kpi .l{font-size:12px;color:var(--ink-3)}
+.kpi .v{font-size:22px;font-weight:800;letter-spacing:-.5px;margin-top:2px}
+.kpi .s{font-size:11px;color:var(--ink-3)}
+/* tabs */
+.tabs{display:flex;gap:4px;margin-top:14px;border-bottom:1px solid var(--line)}
+.tabs button{border:0;background:none;padding:9px 14px;font-size:14px;color:var(--ink-3);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs button.on{color:var(--ink);font-weight:800;border-bottom-color:var(--ink)}
+.tabs button .n{font-size:11px;color:var(--ink-3);margin-left:4px}
+.panel{display:none;margin-top:12px}
+.panel.on{display:block}
+/* history cards */
+.sortbar{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--ink-3);margin-bottom:8px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.card .hd{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--ink-3)}
+.src{display:inline-flex;align-items:center;gap:4px;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:700;color:#fff}
+.src.web{background:var(--web)}.src.bot{background:var(--bot)}
+.card .q{font-size:16px;font-weight:800;margin:6px 0 4px;letter-spacing:-.2px}
+.card .sum{color:var(--ink-2);font-size:13px}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.chip{background:var(--chip);color:var(--chip-ink);border-radius:999px;padding:2px 9px;font-size:12px;white-space:nowrap}
+.chip.k{background:transparent;border:1px solid var(--line-2)}
+.chip.warn{background:var(--warn-bg);color:var(--warn)}
+.chip.zero{background:var(--bad-bg);color:var(--bad);font-weight:700}
+.chip.ok{background:var(--good-bg);color:var(--good)}
+.tops{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center}
+.tops .t{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface-2);border-radius:8px;padding:4px 8px;font-size:12px;cursor:pointer}
+.tops .t:hover{border-color:var(--ink)}
+.tops .t b{font-weight:800}
+.tops .t .r{font-size:10px;border-radius:4px;padding:0 4px;background:var(--chip);color:var(--ink-2)}
+.tops .t .r.r0{background:var(--good-bg);color:var(--good)}.tops .t .r.r3,.tops .t .r.r4{background:var(--bad-bg);color:var(--bad)}
+.tops .more{border:0;background:none;color:var(--web);font-size:12px}
+.empty{padding:40px;text-align:center;color:var(--ink-3)}
+/* map */
+.maplay{display:grid;grid-template-columns:1fr 320px;gap:12px}
+#map{height:640px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2)}
+.mapside{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;overflow:auto;max-height:640px}
+.mapside h3{margin:0 0 8px;font-size:13px;color:var(--ink-2)}
+.legend{font-size:12px;color:var(--ink-2);display:flex;flex-direction:column;gap:6px}
+.legend .row{display:flex;align-items:center;gap:8px}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;border:1.5px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.15)}
+.rank{margin-top:12px}
+.rank .r{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center;padding:5px 0;border-top:1px solid var(--line);font-size:12px;cursor:pointer}
+.rank .r:hover{background:var(--surface-2)}
+.rank .bar{height:6px;background:var(--seq-4);border-radius:3px;margin-top:3px}
+.leaflet-popup-content{font-family:inherit;font-size:12px;line-height:1.45}
+.leaflet-popup-content b{font-size:13px}
+.pp .btn{margin-top:6px}
+.leaflet-container{font-family:inherit}
+.lbl{background:none;border:0;box-shadow:none;font-weight:800;font-size:11px;color:var(--demand);text-shadow:0 0 3px var(--surface),0 0 3px var(--surface)}
+/* insights */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.box h3{margin:0 0 4px;font-size:14px;font-weight:800}
+.box .d{font-size:12px;color:var(--ink-3);margin-bottom:10px}
+table.hm{border-collapse:separate;border-spacing:2px;font-size:12px;width:100%}
+table.hm th{font-weight:700;color:var(--ink-2);padding:4px;text-align:center;white-space:nowrap}
+table.hm th:first-child{text-align:left}
+table.hm td{text-align:center;padding:6px 4px;border-radius:4px;min-width:34px}
+table.hm td.c0{background:var(--surface-2);color:var(--ink-3)}
+table.hm td.c1{background:var(--seq-1)}table.hm td.c2{background:var(--seq-2)}table.hm td.c3{background:var(--seq-3);color:#fff}table.hm td.c4{background:var(--seq-5);color:#fff}
+.bars .b{display:grid;grid-template-columns:120px 1fr 40px;gap:8px;align-items:center;font-size:12px;padding:3px 0}
+.bars .b .bar{height:10px;border-radius:0 4px 4px 0;background:var(--seq-4);min-width:2px}
+.bars .b .bar.bot{background:var(--bot)}
+.bars .b .bar.web{background:var(--web)}
+.bars .b .n{color:var(--ink-2);text-align:right}
+.bars .b.hd{color:var(--ink-3);font-size:11px}
+.gap{border-top:1px solid var(--line);padding:10px 0}
+.gap .t{font-weight:800;font-size:13px}
+.gap .s{font-size:12px;color:var(--ink-2);margin:2px 0 6px}
+.gap .cands{display:flex;gap:5px;flex-wrap:wrap}
+.gap .cands .t2{border:1px dashed var(--line-2);border-radius:8px;padding:3px 8px;font-size:12px;cursor:pointer}
+.gap .cands .t2:hover{border-color:var(--ink)}
+.gap .cands .t2 i{font-style:normal;color:var(--ink-3);margin-left:4px}
+.pill{display:inline-block;border-radius:4px;padding:0 5px;font-size:11px;font-weight:700}
+.pill.off{background:var(--bad-bg);color:var(--bad)}.pill.on{background:var(--good-bg);color:var(--good)}.pill.na{background:var(--chip);color:var(--ink-2)}
+/* venues table */
+table.vt{width:100%;border-collapse:collapse;font-size:12px;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+table.vt th{background:var(--surface-2);text-align:left;padding:8px;color:var(--ink-2);cursor:pointer;white-space:nowrap;position:sticky;top:52px}
+table.vt td{padding:7px 8px;border-top:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+table.vt tr:hover td{background:var(--surface-2);cursor:pointer}
+.vtwrap{overflow:auto;max-height:70vh;border-radius:12px}
+/* drawer */
+.drawer{position:fixed;top:0;right:0;height:100vh;width:min(440px,100vw);background:var(--surface);border-left:1px solid var(--line);box-shadow:var(--shadow);transform:translateX(105%);transition:transform .2s;z-index:100;overflow:auto;padding:14px 16px 32px}
+.drawer.on{transform:none}
+.drawer .x{position:absolute;top:10px;right:12px;border:0;background:var(--surface-2);border-radius:50%;width:30px;height:30px;font-size:16px}
+.drawer img{width:100%;height:200px;object-fit:cover;border-radius:10px;background:var(--surface-2)}
+.drawer h2{font-size:18px;margin:10px 0 2px;font-weight:800}
+.drawer .sub{color:var(--ink-3);font-size:12px}
+.kv{display:grid;grid-template-columns:84px 1fr;gap:4px 10px;font-size:13px;margin-top:10px}
+.kv dt{color:var(--ink-3)}.kv dd{margin:0}
+.drawer h4{font-size:13px;margin:16px 0 6px;color:var(--ink-2)}
+.drawer .links{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.drawer .hist .h{border-top:1px solid var(--line);padding:6px 0;font-size:12px}
+.drawer .hist .h .q{font-weight:700;font-size:13px}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.25);z-index:90;display:none}
+.ov.on{display:block}
+@media (max-width:900px){
+  .maplay{grid-template-columns:1fr}#map{height:420px}.mapside{max-height:none}.grid2{grid-template-columns:1fr}
+  table.vt th{top:0}.kpi .v{font-size:18px}
+}
+</style>
+</head>
+<body>
+<header class="top"><div class="in">
+  <h1>파인다이닝 검색 이력 <small>비서진 예약툴 · 웍스 봇 AI 검색</small> <a href="./" style="font-size:13px;font-weight:700;color:var(--accent,#017A37);margin-left:10px;text-decoration:none">← 매장 검색</a></h1>
+  <div class="meta" id="meta"></div>
+</div></header>
+
+<div class="wrap">
+  <div id="banner" class="banner" hidden></div>
+
+  <div class="filters" id="filters">
+    <label>기간
+      <span class="seg" data-k="period">
+        <button data-v="all" class="on">전체</button><button data-v="7">7일</button><button data-v="30">30일</button><button data-v="custom">직접</button>
+      </span>
+    </label>
+    <label id="customDates" hidden><input type="date" id="dFrom"> ~ <input type="date" id="dTo"></label>
+    <label>출처
+      <span class="seg" data-k="src"><button data-v="" class="on">전체</button><button data-v="web">웹</button><button data-v="bot">봇</button></span>
+    </label>
+    <label>사용자 <select id="fWho"><option value="">전체</option></select></label>
+    <label>권역 <select id="fArea"><option value="">전체</option></select></label>
+    <label>동네 <select id="fHood"><option value="">전체</option></select></label>
+    <label>음식 <select id="fFood"><option value="">전체</option></select></label>
+    <label>인원 <select id="fParty"><option value="">전체</option><option value="1-2">1~2명</option><option value="3-4">3~4명</option><option value="5-8">5~8명</option><option value="9-15">9~15명</option><option value="16-999">16명↑</option></select></label>
+    <label>가격대 <select id="fPrice"><option value="">전체</option></select></label>
+    <label>목적 <select id="fOcc"><option value="">전체</option><option>접대</option><option>미팅</option><option>회식</option><option>데이트</option><option>가족</option></select></label>
+    <span id="togs">
+      <button class="tog" data-t="room">룸</button>
+      <button class="tog" data-t="rent">대관</button>
+      <button class="tog" data-t="mi">미쉐린·파인</button>
+      <button class="tog" data-t="omakase">오마카세</button>
+      <button class="tog" data-t="avail">빈자리 요청</button>
+    </span>
+    <label>결과 <select id="fRes"><option value="">전체</option><option value="relaxed">조건 완화됨</option><option value="few">매칭 2곳 이하</option><option value="place">지역 밖(장소 미지원)</option></select></label>
+    <input type="text" id="fQ" placeholder="질문·매장명·요약 검색">
+    <span class="spacer"></span>
+    <button class="btn" id="reset">초기화</button>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="tabs" id="tabs">
+    <button data-p="hist" class="on">검색 이력<span class="n" id="nHist"></span></button>
+    <button data-p="map">지도</button>
+    <button data-p="ins">인사이트</button>
+    <button data-p="ven">매장<span class="n" id="nVen"></span></button>
+  </div>
+
+  <section class="panel on" id="p-hist">
+    <div class="sortbar">정렬
+      <span class="seg" data-k="sort"><button data-v="new" class="on">최신순</button><button data-v="old">오래된순</button><button data-v="few">매칭 적은순</button></span>
+      <span class="spacer"></span><span id="histCount"></span>
+    </div>
+    <div id="hist"></div>
+  </section>
+
+  <section class="panel" id="p-map">
+    <div class="maplay">
+      <div id="map"></div>
+      <aside class="mapside">
+        <h3>표시</h3>
+        <div class="legend">
+          <label class="row"><input type="checkbox" id="lyAll" checked> <span class="dot" style="background:var(--mark-all)"></span> 파인다이닝 전체(F1~F3)</label>
+          <label class="row"><input type="checkbox" id="lySearch" checked> <span class="dot" style="background:var(--mark-search)"></span> AI 검색 대상 매장</label>
+          <label class="row"><input type="checkbox" id="lyReco" checked> <span class="dot" style="background:var(--seq-4)"></span> 추천된 매장(클수록 많이 추천)</label>
+          <label class="row"><input type="checkbox" id="lyDemand" checked> <span class="dot" style="background:var(--demand);opacity:.6"></span> 검색 수요(동네별 건수)</label>
+        </div>
+        <div class="rank" id="mapRank"></div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="panel" id="p-ins">
+    <div class="grid2">
+      <div class="box"><h3>어디서 무엇을 찾나 — 권역 × 음식</h3><div class="d">현재 필터의 검색 건수. 음식 조건이 없는 검색은 '무관'.</div><div id="hm"></div></div>
+      <div class="box"><h3>요청 조건 빈도</h3><div class="d">검색 1건이 여러 조건을 가질 수 있음. 막대는 출처(웹·봇)별.</div><div class="bars" id="conds"></div></div>
+      <div class="box"><h3>가장 많이 추천된 매장</h3><div class="d">검색 결과 상위 3곳에 든 횟수(봇은 실제 발송 3곳, 웹은 서버 재계산 상위 3곳).</div><div class="bars" id="topVen"></div></div>
+      <div class="box"><h3>셋팅 우선 후보 — 수요는 있는데 결과가 없거나 적었던 조건</h3><div class="d">조건이 완화됐거나 매칭이 2곳 이하였던 검색을 동네·음식별로 묶고, 같은 동네의 파인다이닝 중 <b>검색 대상이 아니거나 예약 OFF·룸 미확인</b>이라 결과에 못 든 매장을 후보로 보여줍니다.</div><div id="gaps"></div></div>
+    </div>
+  </section>
+
+  <section class="panel" id="p-ven">
+    <div class="sortbar"><input type="text" id="vQ" placeholder="매장명·주소·음식 검색" style="background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:5px 8px;min-width:220px">
+      <label><input type="checkbox" id="vSearchOnly"> 검색 대상만</label>
+      <label><input type="checkbox" id="vRecoOnly"> 추천된 매장만</label>
+      <span class="spacer"></span><span id="venCount"></span></div>
+    <div class="vtwrap"><table class="vt" id="vt"></table></div>
+  </section>
+</div>
+
+<div class="ov" id="ov"></div>
+<aside class="drawer" id="drawer"></aside>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin=""></script>
+<script>
+'use strict';
+const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtN=n=>Number(n||0).toLocaleString('ko-KR');
+const BANDS=['~3만','3~5만','5~10만','10~20만','20만↑'];
+const RANK_T={0:'요청 시각 OK',1:'다른 시각 가능',2:'미연동·조회불가',3:'인원 불가',4:'마감·휴무'};
+
+let CAT=null, HIST=null, BYPID={}, HOODXY={};
+const F={period:'all',from:'',to:'',src:'',who:'',area:'',hood:'',food:'',party:'',price:'',occ:'',res:'',q:'',tog:{}};
+let SORT='new', TAB='hist', FILTERED=[], RECO={}, TOP3={};
+let map=null, layers={}, mapReady=false;
+
+async function boot(){
+  const [c,h]=await Promise.all([fetch('data/catalog.json').then(r=>r.json()),fetch('data/history.json').then(r=>r.json())]);
+  CAT=c; HIST=h;
+  CAT.entries.forEach(v=>BYPID[v.pid]=v);
+  (CAT.meta.hoods||[]).forEach(hd=>HOODXY[hd.hood]=hd);
+  HIST.entries.forEach(e=>{e._t=new Date(e.ts); e.parsed=e.parsed||{}; e.top=e.top||[]; e._people=e.parsed.people||0; e._zero=e.n_match===0||(e.relaxed&&e.relaxed.length>0);});
+  $('#meta').innerHTML=`<span>이력 ${fmtN(HIST.n)}건 · ${esc((HIST.since||'').slice(0,10))} ~ ${esc((HIST.asof||'').slice(0,10))}</span><span>매장 ${fmtN(CAT.n)}곳(검색 대상 ${fmtN(CAT.n_searchable)}) · 카탈로그 ${esc(CAT.source_asof)}</span>`;
+  if(HIST.meta&&HIST.meta.sample){const b=$('#banner');b.hidden=false;b.innerHTML='<b>샘플 데이터</b> — 서버의 검색 이력 저장(2026-10-29 추가)이 쌓이기 전이라, 실제 질문 유형을 본뜬 40건으로 화면을 구성했습니다. 매장·매칭 결과는 실제 카탈로그 기준입니다.';}
+  else if(HIST.n<10){const b=$('#banner');b.hidden=false;b.innerHTML=`<b>실데이터 수집 초기</b> — 서버가 2026-10-29부터 검색 이력을 저장하기 시작했고 현재 ${fmtN(HIST.n)}건입니다. 비서진·봇 사용이 쌓이면 데이터 갱신 때 늘어납니다.`;}
+  fillSelects(); bindUI(); apply();
+}
+function fillSelects(){
+  const whos=[...new Set(HIST.entries.map(e=>e.who))].sort();
+  $('#fWho').innerHTML='<option value="">전체</option>'+whos.map(w=>`<option>${esc(w)}</option>`).join('');
+  $('#fArea').innerHTML='<option value="">전체</option>'+(CAT.meta.areas||[]).map(a=>`<option>${esc(a)}</option>`).join('')+'<option value="__place">지역 밖(장소명)</option>';
+  $('#fHood').innerHTML='<option value="">전체</option>'+(CAT.meta.hoods||[]).map(h=>`<option value="${esc(h.hood)}">${esc(h.hood)} <small>(${esc(h.area)})</small></option>`).join('');
+  const foods=[...new Set(HIST.entries.flatMap(e=>e.parsed.food||[]))].sort();
+  $('#fFood').innerHTML='<option value="">전체</option>'+foods.map(f=>`<option>${esc(f)}</option>`).join('')+'<option value="__none">음식 무관</option>';
+  $('#fPrice').innerHTML='<option value="">전체</option>'+BANDS.map(b=>`<option>${esc(b)}</option>`).join('');
+}
+function bindUI(){
+  $$('.seg').forEach(seg=>seg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
+    const k=seg.dataset.k,v=b.dataset.v; if(k==='sort'){SORT=v;renderHist();return} F[k]=v; if(k==='period'){$('#customDates').hidden=v!=='custom'} apply();}));
+  [['fWho','who'],['fArea','area'],['fHood','hood'],['fFood','food'],['fParty','party'],['fPrice','price'],['fOcc','occ'],['fRes','res']].forEach(([id,k])=>$('#'+id).addEventListener('change',e=>{F[k]=e.target.value;apply()}));
+  $('#dFrom').addEventListener('change',e=>{F.from=e.target.value;apply()}); $('#dTo').addEventListener('change',e=>{F.to=e.target.value;apply()});
+  let tm; $('#fQ').addEventListener('input',e=>{clearTimeout(tm);tm=setTimeout(()=>{F.q=e.target.value.trim();apply()},200)});
+  $$('#togs .tog').forEach(b=>b.addEventListener('click',()=>{const t=b.dataset.t;F.tog[t]=!F.tog[t];b.classList.toggle('on',F.tog[t]);apply()}));
+  $('#reset').addEventListener('click',()=>{location.hash='';location.reload()});
+  $('#tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;showTab(b.dataset.p)});
+  ['lyAll','lySearch','lyReco','lyDemand'].forEach(id=>$('#'+id).addEventListener('change',syncLayers));
+  $('#ov').addEventListener('click',closeDrawer);
+  $('#vQ').addEventListener('input',renderVen); $('#vSearchOnly').addEventListener('change',renderVen); $('#vRecoOnly').addEventListener('change',renderVen);
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer()});
+  const h=location.hash.replace('#',''); if(['hist','map','ins','ven'].includes(h))showTab(h);
+}
+function showTab(p){TAB=p;$$('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));$$('.panel').forEach(s=>s.classList.toggle('on',s.id==='p-'+p));history.replaceState(null,'','#'+p);
+  if(p==='map'){initMap();setTimeout(()=>{map.invalidateSize();renderMap()},50)} if(p==='ins')renderIns(); if(p==='ven')renderVen();}
+
+function inPeriod(e){
+  if(F.period==='all')return true;
+  if(F.period==='custom'){const t=e.ts.slice(0,10);if(F.from&&t<F.from)return false;if(F.to&&t>F.to)return false;return true}
+  const d=parseInt(F.period,10);const ref=new Date(HIST.asof||Date.now());return (ref-e._t)/864e5<=d;
+}
+function match(e){
+  const p=e.parsed;
+  if(!inPeriod(e))return false;
+  if(F.src&&e.src!==F.src)return false;
+  if(F.who&&e.who!==F.who)return false;
+  if(F.area){ if(F.area==='__place'){if(!p.place)return false} else { const areas=new Set(p.area||[]);(p.hood||[]).forEach(h=>{if(HOODXY[h])areas.add(HOODXY[h].area)}); if(!areas.has(F.area))return false } }
+  if(F.hood&&!(p.hood||[]).includes(F.hood))return false;
+  if(F.food){ if(F.food==='__none'){if((p.food||[]).length)return false} else if(!(p.food||[]).includes(F.food))return false }
+  if(F.party){const [a,b]=F.party.split('-').map(Number);if(!(e._people>=a&&e._people<=b))return false}
+  if(F.price&&!(p.price||[]).includes(F.price))return false;
+  if(F.occ&&p.occasion!==F.occ)return false;
+  if(F.tog.room&&!p.room)return false; if(F.tog.rent&&!p.rent)return false; if(F.tog.omakase&&!p.omakase)return false; if(F.tog.avail&&!p.avail)return false;
+  if(F.tog.mi&&!(p.michelin||p.fd))return false;
+  if(F.res==='relaxed'&&!(e.relaxed&&e.relaxed.length))return false;
+  if(F.res==='few'&&!(e.n_match!=null&&e.n_match<=2))return false;
+  if(F.res==='place'&&!p.place)return false;
+  if(F.q){const s=(e.q+' '+(p.summary||'')+' '+e.top.map(t=>t.name).join(' ')+' '+e.who).toLowerCase();if(!s.includes(F.q.toLowerCase()))return false}
+  return true;
+}
+function apply(){
+  FILTERED=HIST.entries.filter(match);
+  RECO={};TOP3={};
+  FILTERED.forEach(e=>{e.top.forEach((t,i)=>{RECO[t.pid]=(RECO[t.pid]||0)+1;if(i<3)TOP3[t.pid]=(TOP3[t.pid]||0)+1})});
+  renderKpis(); renderHist(); $('#nHist').textContent=FILTERED.length; $('#nVen').textContent=CAT.n;
+  if(TAB==='map'&&mapReady)renderMap(); if(TAB==='ins')renderIns(); if(TAB==='ven')renderVen();
+}
+function renderKpis(){
+  const n=FILTERED.length, bot=FILTERED.filter(e=>e.src==='bot').length;
+  const relaxed=FILTERED.filter(e=>e.relaxed&&e.relaxed.length).length;
+  const few=FILTERED.filter(e=>e.n_match!=null&&e.n_match<=2).length;
+  const withM=FILTERED.filter(e=>e.n_match!=null); const avg=withM.length?withM.reduce((a,e)=>a+e.n_match,0)/withM.length:0;
+  const users=new Set(FILTERED.map(e=>e.who)).size, pl=FILTERED.filter(e=>e.parsed.place).length;
+  const pct=(a,b)=>b?Math.round(a/b*100)+'%':'–';
+  $('#kpis').innerHTML=[
+    ['검색',fmtN(n)+'건',`웹 ${fmtN(n-bot)} · 봇 ${fmtN(bot)} · 사용자 ${users}명`],
+    ['조건 완화 발생',pct(relaxed,n),`${fmtN(relaxed)}건 — 원래 조건으론 0곳`],
+    ['매칭 2곳 이하',pct(few,n),`${fmtN(few)}건 — 선택지가 거의 없던 검색`],
+    ['평균 매칭 매장',avg?avg.toFixed(1)+'곳':'–','조건을 만족한 검색 대상 매장 수'],
+    ['추천에 든 매장',fmtN(Object.keys(TOP3).length)+'곳',`상위 3곳 기준 · 전체 ${fmtN(Object.keys(RECO).length)}곳`],
+    ['지역 밖 요청',fmtN(pl)+'건','속초·제주·대전 등 카탈로그 밖 장소'],
+  ].map(([l,v,s])=>`<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join('');
+}
+function chipsOf(p){
+  const c=[];
+  if(p.date)c.push(['📅 '+p.date.slice(5).replace('-','/')+(p.time?' '+p.time:''),'k']); else if(p.time)c.push(['🕖 '+p.time,'k']);
+  if(p.people)c.push([p.people+'명','k']);
+  (p.hood||[]).forEach(h=>c.push(['📍 '+h,'']));
+  if(!(p.hood||[]).length)(p.area||[]).forEach(a=>c.push(['📍 '+a+' 전체','']));
+  if(p.place)c.push(['📍 '+p.place+' (지역 밖)','warn']);
+  (p.food||[]).forEach(f=>c.push([f,'']));
+  if(p.fd)c.push(['파인다이닝','']); if(p.michelin)c.push(['미쉐린','']); if(p.omakase)c.push(['오마카세','']);
+  if(p.room)c.push(['룸','']); if(p.rent)c.push(['대관','']); if(p.avail)c.push(['빈자리 요청','']);
+  (p.price||[]).forEach(b=>c.push(['💰 '+b,'']));
+  if(p.occasion)c.push(['목적 '+p.occasion,'k']);
+  return c.map(([t,k])=>`<span class="chip ${k}">${esc(t)}</span>`).join('');
+}
+function whenStr(ts){const d=new Date(ts);const wd='일월화수목금토'[d.getDay()];return `${ts.slice(0,10)} (${wd}) ${ts.slice(11,16)}`}
+function renderHist(){
+  const arr=FILTERED.slice();
+  if(SORT==='new')arr.sort((a,b)=>b._t-a._t); else if(SORT==='old')arr.sort((a,b)=>a._t-b._t); else arr.sort((a,b)=>(a.n_match??1e9)-(b.n_match??1e9)||b._t-a._t);
+  $('#histCount').textContent=`${fmtN(arr.length)}건`;
+  if(!arr.length){$('#hist').innerHTML='<div class="empty">조건에 맞는 검색 이력이 없습니다.</div>';return}
+  $('#hist').innerHTML=arr.map(e=>{
+    const p=e.parsed, top=e.top;
+    const res=e.n_match==null?'<span class="chip k">매칭 수 미기록</span>':e.n_match===0?'<span class="chip zero">0곳</span>':`<span class="chip ${e.n_match<=2?'warn':'ok'}">매칭 ${fmtN(e.n_match)}곳</span>`;
+    const rel=(e.relaxed||[]).map(r=>`<span class="chip warn">⚠ ${esc(r)}</span>`).join('');
+    const tops=top.slice(0,3).map((t,i)=>venChip(t,i)).join('')+(top.length>3?`<button class="more" data-id="${esc(e.id)}">+${top.length-3}곳 더</button>`:'');
+    return `<article class="card" data-id="${esc(e.id)}">
+      <div class="hd"><span class="src ${e.src}">${e.src==='bot'?'웍스 봇':'웹 AI'}</span><span>${esc(whenStr(e.ts))}</span><span>·</span><span>${esc(e.who)}</span>${e.ms?`<span>· ${(e.ms/1000).toFixed(1)}s</span>`:''}${e.backfill?'<span class="chip k">로그 복원</span>':''}</div>
+      <div class="q">“${esc(e.q)}”</div>
+      ${p.summary?`<div class="sum">${esc(p.summary)}</div>`:''}
+      <div class="chips">${chipsOf(p)}</div>
+      <div class="tops">${res}${rel}${top.length?'<span style="color:var(--ink-3);font-size:12px">추천</span>'+tops:(e.n_match===0?'<span style="color:var(--ink-3);font-size:12px">추천 없음</span>':'')}</div>
+    </article>`;
+  }).join('');
+  $('#hist').onclick=ev=>{
+    const m=ev.target.closest('.more'); if(m){const e=HIST.entries.find(x=>x.id===m.dataset.id);const box=m.parentElement;m.remove();box.insertAdjacentHTML('beforeend',e.top.slice(3).map((t,i)=>venChip(t,i+3)).join(''));return}
+    const t=ev.target.closest('.t[data-pid]'); if(t)openVen(t.dataset.pid);
+  };
+}
+function venChip(t,i){const v=BYPID[t.pid];const r=t.rank!=null?`<span class="r r${t.rank}" title="${esc(RANK_T[t.rank]||'')}">${esc(RANK_T[t.rank]||'')}</span>`:'';
+  return `<span class="t" data-pid="${esc(t.pid)}"><b>${i+1}. ${esc(t.name||(v&&v.name)||t.pid)}</b>${v?`<span style="color:var(--ink-3)">${esc(v.hood||v.region)} · ${esc(v.food)}${v.room==='O'?' · 룸':''}</span>`:''}${r}</span>`}
+
+/* ---------- map ---------- */
+function initMap(){
+  if(map)return;
+  map=L.map('map',{preferCanvas:true}).setView([37.51,127.03],12);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
+  layers={all:L.layerGroup().addTo(map),search:L.layerGroup().addTo(map),reco:L.layerGroup().addTo(map),demand:L.layerGroup().addTo(map)};
+  mapReady=true;
+}
+function popup(v){const c=RECO[v.pid]||0;return `<div class="pp"><b>${esc(v.name)}</b> <span style="color:var(--ink-3)">${esc(v.tier)}${v.mi?' · '+esc(v.mi):''}</span><br>${esc(v.hood||v.region)} · ${esc(v.food)}${v.pcCat?' ('+esc(v.pcCat)+')':''}<br>룸 ${v.room==='O'?'있음':v.room==='X'?'없음':'미확인'}${v.cap?' · '+esc(v.cap):''}${v.rent==='O'?' · 대관':''} · 예약 ${v.booking?'ON':'OFF'}${v.pb?' · '+esc(v.pb):''}<br>${c?`<b style="color:var(--seq-4)">추천 ${c}회</b> · `:''}${v.searchable?'검색 대상':'<span style="color:var(--warn)">검색 대상 아님</span>'}<br><button class="btn" onclick="openVen('${esc(v.pid)}')">상세 보기</button></div>`}
+function renderMap(){
+  if(!mapReady)return;
+  Object.values(layers).forEach(l=>l.clearLayers());
+  const css=getComputedStyle(document.documentElement), col=n=>css.getPropertyValue(n).trim();
+  const maxR=Math.max(1,...Object.values(RECO));
+  CAT.entries.forEach(v=>{
+    if(v.x==null||v.closed)return;
+    const n=RECO[v.pid]||0;
+    if(n){const r=6+Math.sqrt(n/maxR)*16;L.circleMarker([v.y,v.x],{radius:r,color:'#fff',weight:1.5,fillColor:col('--seq-4'),fillOpacity:.85}).bindPopup(popup(v)).addTo(layers.reco)}
+    else if(v.searchable){L.circleMarker([v.y,v.x],{radius:4.5,color:'#fff',weight:1,fillColor:col('--mark-search'),fillOpacity:.9}).bindPopup(popup(v)).addTo(layers.search)}
+    else{L.circleMarker([v.y,v.x],{radius:3,color:'#fff',weight:.5,fillColor:col('--mark-all'),fillOpacity:.7}).bindPopup(popup(v)).addTo(layers.all)}
+  });
+  const dem={};
+  FILTERED.forEach(e=>{const p=e.parsed;let hs=p.hood||[];if(!hs.length&&(p.area||[]).length){hs=(CAT.meta.hoods||[]).filter(h=>h.area===p.area[0]).map(h=>h.hood);} const w=1/Math.max(1,hs.length);hs.forEach(h=>dem[h]=(dem[h]||0)+w)});
+  const maxD=Math.max(1,...Object.values(dem));
+  Object.entries(dem).forEach(([h,n])=>{const xy=HOODXY[h];if(!xy)return;const r=300+Math.sqrt(n/maxD)*1400;
+    L.circle([xy.y,xy.x],{radius:r,color:col('--demand'),weight:1,fillColor:col('--demand'),fillOpacity:.14,interactive:false}).addTo(layers.demand);
+    L.marker([xy.y,xy.x],{icon:L.divIcon({className:'lbl',html:`${esc(h)} ${Math.round(n*10)/10}`,iconSize:[120,16],iconAnchor:[60,8]}),interactive:false}).addTo(layers.demand);});
+  syncLayers();
+  const ranked=Object.entries(RECO).map(([pid,n])=>[BYPID[pid],n]).filter(x=>x[0]).sort((a,b)=>b[1]-a[1]).slice(0,15);
+  const mx=ranked.length?ranked[0][1]:1;
+  $('#mapRank').innerHTML='<h3>추천 많은 매장</h3>'+(ranked.length?ranked.map(([v,n])=>`<div class="r" data-pid="${esc(v.pid)}"><div><b>${esc(v.name)}</b> <span style="color:var(--ink-3)">${esc(v.hood||v.region)}</span><div class="bar" style="width:${Math.round(n/mx*100)}%"></div></div><div>${n}회</div></div>`).join(''):'<div style="color:var(--ink-3);font-size:12px">현재 필터에 추천된 매장이 없습니다.</div>');
+  $('#mapRank').onclick=e=>{const r=e.target.closest('.r');if(!r)return;const v=BYPID[r.dataset.pid];map.setView([v.y,v.x],15);openVen(v.pid)};
+}
+function syncLayers(){if(!mapReady)return;[['lyAll','all'],['lySearch','search'],['lyReco','reco'],['lyDemand','demand']].forEach(([id,k])=>{const on=$('#'+id).checked;if(on&&!map.hasLayer(layers[k]))layers[k].addTo(map);if(!on&&map.hasLayer(layers[k]))map.removeLayer(layers[k])})}
+
+/* ---------- insights ---------- */
+function renderIns(){
+  const areas=CAT.meta.areas.concat(['지역 밖']);
+  const foods=[...new Set(FILTERED.flatMap(e=>e.parsed.food||[]))].sort().concat(['무관']);
+  const cell={};let mx=1;
+  FILTERED.forEach(e=>{const p=e.parsed;const as=new Set(p.area||[]);(p.hood||[]).forEach(h=>{if(HOODXY[h])as.add(HOODXY[h].area)});if(p.place)as.add('지역 밖');if(!as.size)as.add('(미지정)');
+    const fs=(p.food||[]).length?p.food:['무관'];as.forEach(a=>fs.forEach(f=>{const k=a+'|'+f;cell[k]=(cell[k]||0)+1;mx=Math.max(mx,cell[k])}))});
+  const rows=areas.concat(Object.keys(cell).some(k=>k.startsWith('(미지정)'))?['(미지정)']:[]);
+  const cls=n=>n===0?'c0':n<=mx*.25?'c1':n<=mx*.5?'c2':n<=mx*.75?'c3':'c4';
+  $('#hm').innerHTML=`<table class="hm"><tr><th>권역 \\ 음식</th>${foods.map(f=>`<th>${esc(f)}</th>`).join('')}<th>계</th></tr>`+rows.map(a=>{const tot=foods.reduce((s,f)=>s+(cell[a+'|'+f]||0),0);return `<tr><th>${esc(a)}</th>${foods.map(f=>{const n=cell[a+'|'+f]||0;return `<td class="${cls(n)}" title="${esc(a)} · ${esc(f)}: ${n}건">${n||''}</td>`}).join('')}<td class="c0"><b>${tot}</b></td></tr>`}).join('')+'</table>';
+  const conds=[['룸',e=>e.parsed.room],['대관',e=>e.parsed.rent],['미쉐린·파인',e=>e.parsed.michelin||e.parsed.fd],['오마카세',e=>e.parsed.omakase],['빈자리 요청',e=>e.parsed.avail],['가격대 지정',e=>(e.parsed.price||[]).length],['날짜 지정',e=>e.parsed.date],['목적 접대',e=>e.parsed.occasion==='접대'],['목적 회식',e=>e.parsed.occasion==='회식'],['목적 미팅',e=>e.parsed.occasion==='미팅'],['9명 이상',e=>e._people>=9],['지역 밖 장소',e=>e.parsed.place]];
+  const n=FILTERED.length||1;
+  $('#conds').innerHTML='<div class="b hd"><span></span><span>웹 ■ 봇 ■</span><span></span></div>'+conds.map(([l,fn])=>{const w=FILTERED.filter(e=>e.src==='web'&&fn(e)).length,b=FILTERED.filter(e=>e.src==='bot'&&fn(e)).length;return `<div class="b"><span>${esc(l)}</span><span style="display:flex"><span class="bar web" style="width:${w/n*100}%;border-radius:0" title="웹 ${w}"></span><span class="bar bot" style="width:${b/n*100}%" title="봇 ${b}"></span></span><span class="n">${w+b}</span></div>`}).join('');
+  const tv=Object.entries(TOP3).map(([pid,c])=>[BYPID[pid],c]).filter(x=>x[0]).sort((a,b)=>b[1]-a[1]).slice(0,15);const tmx=tv.length?tv[0][1]:1;
+  $('#topVen').innerHTML=tv.length?tv.map(([v,c])=>`<div class="b" style="cursor:pointer" onclick="openVen('${esc(v.pid)}')"><span title="${esc(v.name)}"><b>${esc(v.name)}</b><br><small style="color:var(--ink-3)">${esc(v.hood||v.region)} · ${esc(v.food)}${v.room==='O'?' · 룸':''}${v.booking?'':' · <span style=color:var(--bad)>예약OFF</span>'}</small></span><span class="bar" style="width:${c/tmx*100}%"></span><span class="n">${c}회</span></div>`).join(''):'<div style="color:var(--ink-3)">없음</div>';
+  renderGaps();
+}
+function renderGaps(){
+  const weak=FILTERED.filter(e=>(e.relaxed&&e.relaxed.length)||(e.n_match!=null&&e.n_match<=2));
+  const groups={};
+  weak.forEach(e=>{const p=e.parsed;const loc=(p.hood||[])[0]||(p.area||[])[0]||p.place||'(지역 미지정)';const food=(p.food||[])[0]||(p.omakase?'오마카세':'')||'';const k=loc+'|'+food+'|'+(p.room?'룸':'')+(p.rent?'대관':'');
+    const g=groups[k]||(groups[k]={loc,food,room:!!p.room,rent:!!p.rent,mi:!!(p.michelin||p.fd),n:0,qs:[],maxp:0,isHood:!!(p.hood||[])[0],place:!!p.place&&!(p.hood||[]).length&&!(p.area||[]).length});
+    g.n++;g.qs.push(e.q);g.maxp=Math.max(g.maxp,p.people||0)});
+  const arr=Object.values(groups).sort((a,b)=>b.n-a.n);
+  if(!arr.length){$('#gaps').innerHTML='<div style="color:var(--ink-3)">현재 필터에는 결과가 부족했던 검색이 없습니다.</div>';return}
+  $('#gaps').innerHTML=arr.slice(0,20).map(g=>{
+    let cands=[];
+    if(!g.place){
+      cands=CAT.entries.filter(v=>{if(v.closed||v.x==null)return false;const locOk=g.isHood?v.hood===g.loc:(v.area===g.loc);if(!locOk)return false;
+        if(g.food&&g.food!=='오마카세'&&v.food!==g.food&&!(g.food==='한우'&&v.meat))return false; if(g.food==='오마카세'&&!v.oma)return false;
+        const blocked=!v.searchable||!v.booking||(g.room&&v.room!=='O')||(g.rent&&v.rent!=='O'); return blocked;})
+        .map(v=>{const why=[];if(!v.searchable)why.push('검색 대상 아님');if(!v.booking)why.push('예약 OFF');if(g.room&&v.room==='')why.push('룸 미확인');if(g.room&&v.room==='X')why.push('룸 없음');if(g.rent&&v.rent!=='O')why.push('대관 미확인');return [v,why]})
+        .sort((a,b)=>(b[0].pv||0)-(a[0].pv||0)).slice(0,8);
+    }
+    const cond=[g.loc,g.food,g.room?'룸':'',g.rent?'대관':'',g.mi?'미쉐린·파인':'',g.maxp?`최대 ${g.maxp}명`:''].filter(Boolean).join(' · ');
+    return `<div class="gap"><div class="t">${esc(cond)} <span class="chip warn" style="margin-left:6px">${g.n}건 부족</span></div><div class="s">예: ${g.qs.slice(0,2).map(q=>'“'+esc(q)+'”').join(' / ')}</div>
+      ${g.place?'<div class="s" style="color:var(--warn)">카탈로그 권역 밖 장소 — 해당 지역 파인다이닝 발굴 필요</div>':cands.length?`<div class="cands">${cands.map(([v,why])=>`<span class="t2" onclick="openVen('${esc(v.pid)}')">${esc(v.name)}<i>${esc(v.tier)} · PV ${fmtN(v.pv)} · ${esc(why.join(','))}</i></span>`).join('')}</div>`:'<div class="s" style="color:var(--ink-3)">같은 지역·음식의 미노출 파인다이닝 후보 없음 — 신규 발굴 대상</div>'}
+    </div>`}).join('');
+}
+
+/* ---------- venues ---------- */
+let VSORT={k:'reco',d:-1};
+function renderVen(){
+  const q=($('#vQ').value||'').trim().toLowerCase(), so=$('#vSearchOnly').checked, ro=$('#vRecoOnly').checked;
+  let rows=CAT.entries.filter(v=>(!so||v.searchable)&&(!ro||RECO[v.pid])&&(!q||(v.name+' '+v.addr+' '+v.food+' '+v.pcCat+' '+v.hood).toLowerCase().includes(q)));
+  const val=v=>({reco:RECO[v.pid]||0,top3:TOP3[v.pid]||0,name:v.name,tier:v.tier,hood:v.hood||v.region,food:v.food,room:v.room,booking:v.booking?1:0,pv:v.pv||0,pb:BANDS.indexOf(v.pb),mi:v.mi,searchable:v.searchable?1:0})[VSORT.k];
+  rows.sort((a,b)=>{const x=val(a),y=val(b);return (x>y?1:x<y?-1:0)*VSORT.d||(b.pv||0)-(a.pv||0)});
+  $('#venCount').textContent=`${fmtN(rows.length)}곳`;
+  const H=[['reco','추천'],['top3','상위3'],['name','매장'],['tier','티어'],['hood','동네'],['food','음식'],['room','룸'],['booking','예약'],['pb','가격대'],['mi','미쉐린'],['pv','PV'],['searchable','검색대상']];
+  $('#vt').innerHTML='<thead><tr>'+H.map(([k,l])=>`<th data-k="${k}">${l}${VSORT.k===k?(VSORT.d<0?' ▼':' ▲'):''}</th>`).join('')+'</tr></thead><tbody>'+rows.slice(0,400).map(v=>`<tr data-pid="${esc(v.pid)}"><td><b>${RECO[v.pid]||''}</b></td><td>${TOP3[v.pid]||''}</td><td title="${esc(v.addr)}">${esc(v.name)}</td><td>${esc(v.tier)}</td><td>${esc(v.hood||v.region)}</td><td>${esc(v.food)}</td><td>${v.room==='O'?'있음':v.room==='X'?'없음':'<span style=color:var(--ink-3)>미확인</span>'}</td><td>${v.booking?'<span class="pill on">ON</span>':'<span class="pill off">OFF</span>'}</td><td>${esc(v.pb)}</td><td>${esc(v.mi)}</td><td>${fmtN(v.pv)}</td><td>${v.searchable?'O':'<span style=color:var(--warn)>X</span>'}</td></tr>`).join('')+'</tbody>'+(rows.length>400?`<tfoot><tr><td colspan="12" style="color:var(--ink-3)">상위 400곳만 표시 — 검색어로 좁혀 주세요</td></tr></tfoot>`:'');
+  $('#vt').onclick=e=>{const th=e.target.closest('th');if(th){const k=th.dataset.k;VSORT=VSORT.k===k?{k,d:-VSORT.d}:{k,d:k==='name'||k==='hood'||k==='food'?1:-1};renderVen();return}const tr=e.target.closest('tr[data-pid]');if(tr)openVen(tr.dataset.pid)};
+}
+
+/* ---------- drawer ---------- */
+function openVen(pid){
+  const v=BYPID[pid]; if(!v)return;
+  const hist=HIST.entries.filter(e=>e.top.some(t=>t.pid===pid)).sort((a,b)=>b._t-a._t);
+  const place=`https://m.place.naver.com/place/${pid}/home`, book=`https://m.place.naver.com/place/${pid}/booking?entry=plt`;
+  $('#drawer').innerHTML=`<button class="x" onclick="closeDrawer()">✕</button>
+    ${v.photo?`<img src="${esc(v.photo)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:'<div style="height:120px"></div>'}
+    <h2>${esc(v.name)}</h2>
+    <div class="sub">${esc(v.tier)}${v.mi?' · '+esc(v.mi):''}${v.awards.length?' · '+esc(v.awards.join(', ')):''} · ${v.searchable?'AI 검색 대상':'<span style=color:var(--warn)>AI 검색 대상 아님</span>'}${v.closed?' · <span style=color:var(--bad)>휴폐업</span>':''}</div>
+    <dl class="kv">
+      <dt>위치</dt><dd>${esc(v.hood||'')}${v.hood?' · ':''}${esc(v.region)}<br><small style="color:var(--ink-3)">${esc(v.addr)}</small></dd>
+      <dt>음식</dt><dd>${esc(v.food)}${v.pcCat?' <small style="color:var(--ink-3)">('+esc(v.pcCat)+')</small>':''}${v.oma?' · 오마카세':''}</dd>
+      <dt>룸·수용</dt><dd>${v.room==='O'?'룸 있음':v.room==='X'?'룸 없음':'미확인'}${v.cap?' · '+esc(v.cap):''}${v.rent==='O'?' · 대관 가능':''}</dd>
+      ${v.seat.length?`<dt>좌석</dt><dd>${v.seat.map(s=>esc(s[0])+(s[1]?' '+esc(s[1]):'')).join(' / ')}</dd>`:''}
+      <dt>예약</dt><dd>${v.booking?'<span class="pill on">네이버 예약 ON</span>':'<span class="pill off">예약 OFF</span>'}</dd>
+      <dt>가격대</dt><dd>${v.pb?esc(v.pb)+(v.plo?` <small style="color:var(--ink-3)">(${fmtN(v.plo)}~${fmtN(v.phi)}원)</small>`:''):'–'}${v.repr.length?'<br><small style="color:var(--ink-3)">'+v.repr.map(r=>esc(r[0])+' '+fmtN(r[1])+'원').join(' · ')+'</small>':''}</dd>
+      <dt>PV·리뷰</dt><dd>월 PV ${fmtN(v.pv)}${v.rwn?` · 리뷰 ${fmtN(v.rwn)}${v.rwsc?' · ★'+v.rwsc:''}`:''}${v.kw.length?'<br><small style="color:var(--ink-3)">'+v.kw.map(esc).join(' · ')+'</small>':''}</dd>
+      ${v.phone?`<dt>전화</dt><dd>${esc(v.phone)}</dd>`:''}
+    </dl>
+    <div class="links"><a class="btn" href="${place}" target="_blank" rel="noopener">네이버 플레이스</a>${v.booking?`<a class="btn primary" href="${book}" target="_blank" rel="noopener">네이버 예약</a>`:''}<button class="btn" onclick="showTab('map');setTimeout(()=>map.setView([${v.y},${v.x}],16),80)">지도에서 보기</button></div>
+    <h4>이 매장이 추천된 검색 ${hist.length}건 <small style="color:var(--ink-3)">(전체 이력 기준)</small></h4>
+    <div class="hist">${hist.length?hist.slice(0,30).map(e=>{const i=e.top.findIndex(t=>t.pid===pid);return `<div class="h"><span class="src ${e.src}">${e.src==='bot'?'봇':'웹'}</span> ${esc(whenStr(e.ts))} · ${esc(e.who)} · <b>${i+1}위</b>${e.n_match!=null?` / 매칭 ${e.n_match}곳`:''}<div class="q">“${esc(e.q)}”</div></div>`}).join(''):'<div style="color:var(--ink-3);font-size:12px">아직 추천된 적 없음</div>'}</div>`;
+  $('#drawer').classList.add('on'); $('#ov').classList.add('on'); $('#drawer').scrollTop=0;
+}
+function closeDrawer(){$('#drawer').classList.remove('on');$('#ov').classList.remove('on')}
+boot().catch(e=>{document.querySelector('.wrap').insertAdjacentHTML('afterbegin',`<div class="banner">데이터를 불러오지 못했습니다: ${esc(e.message)}</div>`)});
+</script>
+</body>
+</html>

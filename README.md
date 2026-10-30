@@ -10,7 +10,8 @@
 
 ```
 docs/
-  index.html          뷰어(단일 파일, Leaflet + OpenStreetMap 타일)
+  index.html          매장 검색 페이지(2026-10-30~) — 웍스 봇 [전체 목록 더 보기] 랜딩(?q·d·t·n·m·p=pid[:빈자리순위],…), 이름·조건 검색, 리스트 밖 플레이스 검색(사내망에서만), 네이버 예약·캐치테이블·플레이스 링크(go.html 중계)
+  history.html        검색 이력·지도·인사이트 뷰어(단일 파일, Leaflet + OpenStreetMap 타일)
   data/catalog.json   매장 카탈로그(파인다이닝 F1~F3 860곳, 좌표·룸·가격대·어워즈·리뷰 키워드, AI 검색 대상 플래그)
   data/history.json   검색 이력(질문·파싱 조건·매칭 수·추천 매장). meta.sample=true 면 샘플
 scripts/
