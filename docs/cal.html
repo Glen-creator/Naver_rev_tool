@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>캘린더에 저장</title>
+<!--
+  캘린더 저장 페이지 (2026-11-04, 웍스 봇 v48) — 봇 승인 카드의 [📅 캘린더 저장] 버튼이 연다.
+  서버 없이 URL 파라미터만으로 .ics 파일을 만들어 기기 캘린더(iPhone/Android/PC)에 넣고, Google 캘린더 링크도 준다.
+  사용: cal.html?n=매장명&d=YYYY-MM-DD&t=HH:MM&p=인원&i=placeId&u=<encodeURIComponent(예약 링크)>&m=분(기본 120)
+  웍스 인앱 브라우저에서 파일 저장이 막히면 오른쪽 위 메뉴 "다른 브라우저로 열기" 로 같은 주소를 열면 된다.
+-->
+<style>
+:root{--w:#6b2737;--wd:#55202d;--txt:#1f2328;--sub:#6b7280;--line:#e5e7eb;--bg:#f6f7f9;--g:#03c75a}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif}
+.wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px}
+.card{width:100%;max-width:380px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px 20px;box-shadow:0 6px 24px rgba(0,0,0,.06)}
+.logo{display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:14px;background:var(--w);color:#fff;font-size:26px;margin-bottom:12px}
+h1{font-size:17px;margin:0 0 4px}
+p{margin:0 0 12px;font-size:13px;color:var(--sub);line-height:1.55;word-break:keep-all}
+.ev{background:var(--bg);border-radius:10px;padding:10px 12px;margin:10px 0 14px;font-size:13.5px;line-height:1.6}
+.ev b{display:inline-block;width:46px;color:var(--sub);font-weight:600}
+a.btn,button.btn{display:block;width:100%;padding:13px 12px;border-radius:12px;font-size:15px;font-weight:800;text-decoration:none;margin-top:8px;border:1px solid transparent;text-align:center;cursor:pointer;font-family:inherit}
+.pri{background:var(--w);color:#fff}.pri:active{background:var(--wd)}
+.sec{background:#fff;color:var(--txt);border-color:var(--line)}
+.tip{font-size:11.5px;color:var(--sub);margin-top:14px;line-height:1.5}
+.ok{color:#03a85a;font-weight:700}
+.err{color:#c0392b;font-weight:700}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="card">
+  <div class="logo">📅</div>
+  <h1 id="title">캘린더에 저장</h1>
+  <p id="desc">아래 일정을 내 캘린더에 넣어요. 버튼을 누르면 일정 파일(.ics)이 열리거나 저장돼요 — 캘린더 앱에서 [추가]를 눌러 주세요.</p>
+  <div class="ev" id="ev"></div>
+  <button class="btn pri" id="btnIcs">📅 내 캘린더에 추가 (.ics)</button>
+  <a class="btn sec" id="btnG" href="#" target="_blank" rel="noopener">Google 캘린더에 추가</a>
+  <button class="btn sec" id="btnCopy">일정 내용 복사</button>
+  <a class="btn sec hide" id="btnBook" href="#" rel="noopener">네이버 예약 페이지 열기</a>
+  <div class="tip" id="tip">웍스 안에서 파일이 열리지 않으면 오른쪽 위 메뉴의 "다른 브라우저로 열기"로 이 페이지를 다시 열어 주세요. iPhone 은 Safari, Android 는 Chrome 에서 캘린더 앱으로 바로 넘어가요.</div>
+</div></div>
+<script>
+(function(){
+  var q = new URLSearchParams(location.search);
+  var $ = function(id){ return document.getElementById(id); };
+  var name = (q.get('n') || '예약').slice(0, 80), d = q.get('d') || '', t = (q.get('t') || '').slice(0, 5);
+  var party = parseInt(q.get('p') || '0', 10) || 0, pid = (q.get('i') || '').replace(/\D/g, ''), link = q.get('u') || '';
+  var mins = parseInt(q.get('m') || '120', 10) || 120;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+    $('title').textContent = '일정 정보가 없어요';
+    $('desc').innerHTML = '<span class="err">날짜가 비어 있거나 올바르지 않아요. 봇 카드의 [📅 캘린더 저장] 버튼으로 다시 열어 주세요.</span>';
+    ['ev','btnIcs','btnG','btnCopy','tip'].forEach(function(i){ $(i).classList.add('hide'); });
+    return;
+  }
+  try { var lu = new URL(link); if (lu.protocol !== 'https:' || !/(^|\.)(booking\.naver\.com|place\.naver\.com|naver\.me|catchtable\.co\.kr)$/i.test(lu.hostname)) link = ''; } catch (e) { link = ''; }
+  var WD = '일월화수목금토';
+  var dt = new Date(d + 'T' + (t || '00:00') + ':00+09:00');
+  var dateKo = (dt.getMonth() + 1) + '/' + dt.getDate() + '(' + WD[new Date(d + 'T00:00:00+09:00').getDay()] + ')';
+  var summary = '[예약] ' + name + (party ? ' ' + party + '명' : '');
+  var place = pid ? 'https://m.place.naver.com/restaurant/' + pid + '/home' : '';
+  var desc = ['매장: ' + name, party ? '인원: ' + party + '명' : '', link ? '예약: ' + link : '', place ? '플레이스: ' + place : '',
+              '파인다이닝 추천BOT(네이버웍스)에서 저장'].filter(Boolean).join('\n');
+  $('ev').innerHTML = '<div><b>일정</b>' + summary + '</div><div><b>일시</b>' + dateKo + (t ? ' ' + t : ' (종일)') + '</div>'
+                    + (place ? '<div><b>장소</b><a href="' + place + '" target="_blank" rel="noopener">' + name + '</a></div>' : '');
+  if (link) { $('btnBook').href = link; $('btnBook').classList.remove('hide'); }
+
+  function pad(n){ return (n < 10 ? '0' : '') + n; }
+  function ymd(x){ return x.getFullYear() + pad(x.getMonth() + 1) + pad(x.getDate()); }
+  function stampLocal(x){ return ymd(x) + 'T' + pad(x.getHours()) + pad(x.getMinutes()) + '00'; }
+  function stampUtc(x){ return x.getUTCFullYear() + pad(x.getUTCMonth() + 1) + pad(x.getUTCDate()) + 'T' + pad(x.getUTCHours()) + pad(x.getUTCMinutes()) + '00Z'; }
+  function esc(s){ return String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n'); }
+  // KST 고정 — 기기 시간대와 무관하게 YYYYMMDDTHHMMSS 를 Asia/Seoul 로 적는다
+  var ds = d.replace(/-/g, ''), start, end, allDay = !t;
+  if (allDay) {
+    var nx = new Date(d + 'T00:00:00+09:00'); nx.setUTCDate(nx.getUTCDate() + 1);
+    start = 'DTSTART;VALUE=DATE:' + ds; end = 'DTEND;VALUE=DATE:' + ymd(new Date(nx.getTime() + 9 * 3600e3));
+  } else {
+    var hh = parseInt(t.slice(0, 2), 10), mm = parseInt(t.slice(3, 5), 10) || 0;
+    var e = new Date(Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10), hh, mm) + mins * 60e3);
+    start = 'DTSTART;TZID=Asia/Seoul:' + ds + 'T' + pad(hh) + pad(mm) + '00';
+    end = 'DTEND;TZID=Asia/Seoul:' + e.getUTCFullYear() + pad(e.getUTCMonth() + 1) + pad(e.getUTCDate()) + 'T' + pad(e.getUTCHours()) + pad(e.getUTCMinutes()) + '00';
+  }
+  var uid = 'rev-' + (pid || 'x') + '-' + ds + (t ? t.replace(':', '') : '') + '@glen-creator.github.io';
+  var ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Naver Place//Finedining Bot//KO', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+             'BEGIN:VTIMEZONE', 'TZID:Asia/Seoul', 'BEGIN:STANDARD', 'DTSTART:19700101T000000', 'TZOFFSETFROM:+0900', 'TZOFFSETTO:+0900', 'TZNAME:KST', 'END:STANDARD', 'END:VTIMEZONE',
+             'BEGIN:VEVENT', 'UID:' + uid, 'DTSTAMP:' + stampUtc(new Date()), start, end,
+             'SUMMARY:' + esc(summary), 'DESCRIPTION:' + esc(desc), 'LOCATION:' + esc(name), place ? 'URL:' + place : '',
+             'BEGIN:VALARM', 'TRIGGER:-PT2H', 'ACTION:DISPLAY', 'DESCRIPTION:' + esc(summary), 'END:VALARM',
+             'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n');
+  var ua = navigator.userAgent || '';
+  var isIOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  $('btnIcs').addEventListener('click', function(){
+    var fn = 'reservation-' + ds + '.ics';
+    var blob = new Blob([ics], {type: 'text/calendar;charset=utf-8'});
+    if (isIOS) {   // iOS Safari: data URL 을 같은 탭에서 열면 캘린더 미리보기([추가])가 뜬다
+      location.href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
+    } else {
+      var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fn; document.body.appendChild(a); a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+    }
+    $('tip').innerHTML = '<span class="ok">일정 파일을 열었어요.</span> 캘린더 앱이 뜨면 [추가]/[저장]을 눌러 주세요. 아무 일도 없으면 "다른 브라우저로 열기"로 이 페이지를 다시 열거나 [Google 캘린더에 추가]를 써 주세요.';
+  });
+  var gs = allDay ? ds + '/' + ymd(new Date(new Date(d + 'T00:00:00+09:00').getTime() + 24 * 3600e3 + 9 * 3600e3))
+                  : stampUtc(new Date(d + 'T' + t + ':00+09:00')) + '/' + stampUtc(new Date(new Date(d + 'T' + t + ':00+09:00').getTime() + mins * 60e3));
+  $('btnG').href = 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(summary) + '&dates=' + gs
+                 + '&details=' + encodeURIComponent(desc) + '&location=' + encodeURIComponent(name) + '&ctz=Asia/Seoul';
+  $('btnCopy').addEventListener('click', function(){
+    var txt = summary + '\n' + dateKo + (t ? ' ' + t : '') + '\n' + desc;
+    var done = function(){ $('btnCopy').textContent = '복사했어요 ✓'; setTimeout(function(){ $('btnCopy').textContent = '일정 내용 복사'; }, 1800); };
+    if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(txt).then(done, function(){ prompt('복사해 주세요', txt); }); }
+    else { prompt('복사해 주세요', txt); }
+  });
+})();
+</script>
+</body>
+</html>

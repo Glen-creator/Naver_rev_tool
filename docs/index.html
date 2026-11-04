@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>파인다이닝 찾기</title>
-<meta name="description" content="파인다이닝 서치 헬퍼(웍스 봇) 추천 전체 목록과 매장 검색 — 사진·후기·룸·가격대를 보고 네이버 예약·캐치테이블로 바로 이동">
+<meta name="description" content="파인다이닝 추천BOT(웍스 봇) 추천 전체 목록과 매장 검색 — 사진·후기·룸·가격대를 보고 네이버 예약·캐치테이블로 바로 이동">
 <meta name="robots" content="noindex">
 <style>
 @font-face{font-family:'NanumSquare';font-weight:400;font-display:swap;src:url(https://hangeul.pstatic.net/hangeul_static/webfont/NanumSquare/NanumSquareR.woff) format('woff')}
@@ -298,7 +298,7 @@ function renderBar(){
   if(S.mode==='bot'){b.hidden=false;b.innerHTML='<div class="q"><span class="src">웍스 봇</span>“<b>'+esc(S.q||'파인다이닝 추천')+'</b>” 추천 전체 목록이에요'+(S.nMatch?' — 조건에 맞는 '+S.nMatch+'곳 중 상위 '+S.rows.length+'곳':'')+'</div>'+condChips(S.p)+
     '<div class="note">순서는 봇이 매긴 추천 순위(빈자리·룸·미쉐린·가격대)예요. 예약 가능 표시는 질문 시점 확인값이라 예약 페이지에서 다시 확인해 주세요. 조건을 바꾸려면 봇에 다시 물어보거나 위 검색창을 쓰세요.'+(S.missing?' (카탈로그에서 빠진 매장 '+S.missing+'곳 제외)':'')+'</div>';return}
   if(S.mode==='cond'){b.hidden=false;b.innerHTML='<div class="q">“<b>'+esc(S.q)+'</b>” 조건으로 찾았어요'+(S.relaxed.length?' <span style="color:var(--amber)">('+S.relaxed.join(' → ')+' 후 결과)</span>':'')+'</div>'+condChips(S.p)+
-    '<div class="note">이름이 아니라 조건 문장으로 읽었어요(동네·음식·룸·미쉐린·인원·가격대). 날짜·시간별 빈자리는 웍스 봇 “파인다이닝 서치 헬퍼”에 물어보면 확인해 드려요.</div>';return}
+    '<div class="note">이름이 아니라 조건 문장으로 읽었어요(동네·음식·룸·미쉐린·인원·가격대). 날짜·시간별 빈자리는 웍스 봇 “파인다이닝 추천BOT”에 물어보면 확인해 드려요.</div>';return}
   b.hidden=true;b.innerHTML='';
 }
 function avHtml(d){
